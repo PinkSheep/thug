@@ -161,12 +161,11 @@ CLSID = [
                             'Mode'          : 3,
                             'Position'      : 0,
                             'position'      : 0,
-                            'Size'          : 0,
                             '_files'        : dict(),
                             '_current'      : None},
             'funcattrs' : {
                             'position'      : AdodbStream.setPosition,
-            },
+                          },
             'methods'   : {
                             'Open'          : AdodbStream.open,
                             'Read'          : AdodbStream.Read,
@@ -178,6 +177,7 @@ CLSID = [
                             'WriteText'     : AdodbStream.WriteText,
                             'Close'         : AdodbStream.Close,
                             'setPosition'   : AdodbStream.setPosition,
+                            'getSize'       : AdodbStream.getSize,
                          }
         },
 
@@ -1058,19 +1058,17 @@ CLSID = [
             'attrs'     : {},
             'funcattrs' : {},
             'methods'   : {
-                            'OpenTextFile'      : ScriptingFileSystemObject.OpenTextFile,
-                            'Write'             : ScriptingFileSystemObject.Write,
-                            'Close'             : ScriptingFileSystemObject.Close,
                             'BuildPath'         : ScriptingFileSystemObject.BuildPath,
+                            'CopyFile'          : ScriptingFileSystemObject.CopyFile,
+                            'CreateTextFile'    : ScriptingFileSystemObject.CreateTextFile,
+                            'FileExists'        : ScriptingFileSystemObject.FileExists,
+                            'FolderExists'      : ScriptingFileSystemObject.FolderExists,
+                            'GetExtensionName'  : ScriptingFileSystemObject.GetExtensionName,
+                            'GetFile'           : ScriptingFileSystemObject.GetFile,
                             'GetSpecialFolder'  : ScriptingFileSystemObject.GetSpecialFolder,
                             'GetTempName'       : ScriptingFileSystemObject.GetTempName,
-                            'FileExists'        : ScriptingFileSystemObject.FileExists,
-                            'CreateTextFile'    : ScriptingFileSystemObject.CreateTextFile,
-                            'GetFile'           : ScriptingFileSystemObject.GetFile,
-                            'GetExtensionName'  : ScriptingFileSystemObject.GetExtensionName,
                             'MoveFile'          : ScriptingFileSystemObject.MoveFile,
-                            'CopyFile'          : ScriptingFileSystemObject.CopyFile,
-                            'FolderExists'      : ScriptingFileSystemObject.FolderExists,
+                            'OpenTextFile'      : ScriptingFileSystemObject.OpenTextFile,
                           },
         },
 

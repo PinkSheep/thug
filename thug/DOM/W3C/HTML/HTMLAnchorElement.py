@@ -4,7 +4,7 @@ import logging
 import time
 import datetime
 
-from urlparse import urlparse
+import six.moves.urllib.parse as urlparse
 
 from .HTMLElement import HTMLElement
 from .attr_property import attr_property
@@ -14,9 +14,6 @@ log = logging.getLogger("Thug")
 
 
 class HTMLAnchorElement(HTMLElement):
-    def __init__(self, doc, tag):
-        HTMLElement.__init__(self, doc, tag)
-
     accessKey = attr_property("accesskey")
     charset   = attr_property("charset", default = "")
     coords    = attr_property("coords")
@@ -30,25 +27,37 @@ class HTMLAnchorElement(HTMLElement):
     target    = attr_property("target")
     type      = attr_property("type")
 
+    def __init__(self, doc, tag):
+        HTMLElement.__init__(self, doc, tag)
+
     @property
     def protocol(self):
         if not self.href:
-            return ""
+            return ":"
 
-        o = urlparse(self.href)
-        return ":{}".format(o.scheme) if o.scheme else ""
+        o = urlparse.urlparse(self.href)
+        return "{}:".format(o.scheme) if o.scheme else ":"
 
     @property
     def host(self):
-        o = urlparse(self.href)
+        if not self.href:
+            return ""
+
+        o = urlparse.urlparse(self.href)
         return o.netloc if o.netloc else ""
 
     @property
     def hostname(self):
+        if not self.href:
+            return ""
+
         return self.host.split(":")[0]
 
     @property
     def port(self):
+        if not self.host:
+            return ""
+
         if ":" not in self.host:
             return ""
 

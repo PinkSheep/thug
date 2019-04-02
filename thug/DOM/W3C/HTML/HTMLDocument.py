@@ -11,21 +11,16 @@ from lxml.html import tostring
 from thug.DOM.W3C.Core.Document import Document
 from .HTMLBodyElement import HTMLBodyElement
 from .text_property import text_property
-from .xpath_property import xpath_property
 
 
 log = logging.getLogger("Thug")
 
 
 class HTMLDocument(Document):
-    title       = xpath_property("/html/head/title/text()")
-    # body        = xpath_property("/html/body[1]", readonly = True)
-    images      = xpath_property("//img", readonly = True)
-    applets     = xpath_property("//applet", readonly = True)
-    # forms       = xpath_property("//form", readonly = True)
-    links       = xpath_property("//a[@href]", readonly = True)
-    anchors     = xpath_property("//a[@name]", readonly = True)
-    innerHTML   = text_property()
+    innerHTML = text_property()
+
+    def __str__(self):
+        return "[object HTMLDocument]"
 
     def __init__(self, doc, win = None, referer = None, lastModified = None, cookie = ''):
         Document.__init__(self, doc)
@@ -61,9 +56,6 @@ class HTMLDocument(Document):
             self.__init_personality_Safari()
             return
 
-        if log.ThugOpts.Personality.isOpera():
-            self.__init_personality_Opera()
-
     def __init_personality_IE(self):
         from thug.DOM.W3C.Core.DocumentCompatibleInfoCollection import DocumentCompatibleInfoCollection
 
@@ -88,9 +80,6 @@ class HTMLDocument(Document):
 
     def __init_personality_Safari(self):
         self.all = self._all
-        self.implementation.createHTMLDocument = self.implementation._createHTMLDocument
-
-    def __init_personality_Opera(self):
         self.implementation.createHTMLDocument = self.implementation._createHTMLDocument
 
     def __getattr__(self, attr):
@@ -155,38 +144,86 @@ class HTMLDocument(Document):
         return ""
 
     @property
+    def anchors(self):
+        from .HTMLCollection import HTMLCollection
+
+        nodes = [f for f in self.doc.find_all('a') if 'name' in f.attrs and f.attrs['name']]
+        return HTMLCollection(self.doc, nodes)
+
+    @property
+    def applets(self):
+        from .HTMLCollection import HTMLCollection
+
+        applets = [f for f in self.doc.find_all('applet')]
+        objects = [f for f in self.doc.find_all('object') if 'type' in f.attrs and 'applet' in f.attrs['type']]
+        return HTMLCollection(self.doc, applets + objects)
+
+    @property
     def forms(self):
         from .HTMLCollection import HTMLCollection
-        from thug.DOM.W3C.Core.DOMImplementation import DOMImplementation
 
-        return HTMLCollection(self.doc, [DOMImplementation.createHTMLElement(self.doc, f) for f in self.doc.find_all('form')])
+        nodes = [f for f in self.doc.find_all('form')]
+        return HTMLCollection(self.doc, nodes)
+
+    @property
+    def images(self):
+        from .HTMLCollection import HTMLCollection
+
+        nodes = [f for f in self.doc.find_all('img')]
+        return HTMLCollection(self.doc, nodes)
+
+    @property
+    def links(self):
+        from .HTMLCollection import HTMLCollection
+
+        nodes = [f for f in self.doc.find_all(['a', 'area']) if 'href' in f.attrs and f.attrs['href']]
+        return HTMLCollection(self.doc, nodes)
 
     @property
     def styleSheets(self):
         from .HTMLCollection import HTMLCollection
-        from thug.DOM.W3C.Core.DOMImplementation import DOMImplementation
 
-        return HTMLCollection(self.doc, [DOMImplementation.createHTMLElement(self.doc, f) for f in self.doc.find_all('style')])
+        nodes = [f for f in self.doc.find_all('style')]
+        return HTMLCollection(self.doc, nodes)
+
+    def getTitle(self):
+        title = self.head.tag.find('title')
+        return str(title.string) if title else ""
+
+    def setTitle(self, value):
+        title = self.head.tag.find('title')
+
+        if title:
+            title.string = value
+            return
+
+        title = E.TITLE(value)
+        tag   = BeautifulSoup.BeautifulSoup(tostring(title), "html.parser")
+        self.head.tag.append(tag)
+
+    title = property(getTitle, setTitle)
 
     @property
     def lastModified(self):
         return self._lastModified
 
     def getCookie(self):
-        return self._cookie
+        if not log.HTTPSession or not log.HTTPSession.cookies:
+            return self._cookie
+
+        items = ["{}={}".format(n, v) for n, v in log.HTTPSession.cookies.items()]
+        return "; ".join(items)
 
     def setCookie(self, value):
-        self._cookie = value
+        item = value.split()[0]
+        k, v = item.split('=')
+        log.HTTPSession.set_cookies(k, v)
 
     cookie = property(getCookie, setCookie)
 
-    def getDomain(self):
+    @property
+    def domain(self):
         return self._domain
-
-    def setDomain(self, value):
-        self._domain = value
-
-    domain = property(getDomain, setDomain)
 
     @property
     def URL(self):
@@ -370,13 +407,6 @@ class HTMLDocument(Document):
 
     def writeln(self, text):
         self.write(text + "\n")
-
-    # DOM Level 2 moves getElementbyId in Document object inherited by
-    # HTMLDocument
-    #
-    # def getElementById(self, elementId):
-    #    tag = self.doc.find(id = elementId)
-    #    return DOMImplementation.createHTMLElement(self.doc, tag) if tag else None
 
     def getElementsByName(self, elementName):
         from .HTMLCollection import HTMLCollection

@@ -55,6 +55,7 @@ class ThugLogging(BaseLogging, SampleLogging):
         self.windows         = dict()
         self.shellcodes      = set()
         self.shellcode_urls  = set()
+        self.retrieved_urls  = set()
         self.methods_cache   = dict()
         self.formats         = set()
         self.url             = ""
@@ -71,17 +72,13 @@ class ThugLogging(BaseLogging, SampleLogging):
 
     def __init_config(self):
         self.modules = dict()
-        config       = ConfigParser.ConfigParser()
 
-        conf_file = os.path.join(log.configuration_path, 'logging.conf')
-
-        if not os.path.exists(conf_file):
-            conf_file = os.path.join(log.configuration_path, 'logging.conf.default')
-
+        conf_file = os.path.join(log.configuration_path, 'thug.conf')
         if not os.path.exists(conf_file):
             log.warning("[CRITICAL] Logging subsystem not initialized (configuration file not found)")
             return
 
+        config = ConfigParser.ConfigParser()
         config.read(conf_file)
 
         for name, module in LoggingModules.items():
@@ -106,7 +103,12 @@ class ThugLogging(BaseLogging, SampleLogging):
         self.methods_cache[name] = methods
         return methods
 
+    def clear(self):
+        self.Features.clear()
+
     def set_url(self, url):
+        self.clear()
+
         self.url = url
 
         for m in self.resolve_method('set_url'):
@@ -245,7 +247,13 @@ class ThugLogging(BaseLogging, SampleLogging):
         for m in self.resolve_method('log_warning'):
             m(data)
 
+    def log_cookies(self):
+        for m in self.resolve_method('log_cookies'):
+            m()
+
     def log_redirect(self, response, window):
+        self.log_cookies()
+
         if not response.history:
             if 'Set-Cookie' in response.headers:
                 log.CookieClassifier.classify(response.url, response.headers['Set-Cookie'])

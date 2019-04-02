@@ -14,11 +14,11 @@ log = logging.getLogger("Thug")
 
 
 class HTMLElement(Element, ElementCSSInlineStyle):
-    id              = attr_property("id")
-    title           = attr_property("title")
-    lang            = attr_property("lang")
-    dir             = attr_property("dir")
-    className       = attr_property("class", default = "")
+    id        = attr_property("id")
+    title     = attr_property("title")
+    lang      = attr_property("lang")
+    dir       = attr_property("dir")
+    className = attr_property("class", default = "")
 
     def __init__(self, doc, tag):
         Element.__init__(self, doc, tag)
@@ -46,7 +46,7 @@ class HTMLElement(Element, ElementCSSInlineStyle):
         return html.getvalue()
 
     def setInnerHTML(self, html):
-        log.HTMLClassifier.classify(log.ThugLogging.url if log.ThugOpts.local else self.doc.window.url, html)
+        log.HTMLClassifier.classify(log.ThugLogging.url if log.ThugOpts.local else log.last_url_fetched, html)
 
         self.tag.clear()
 
@@ -61,8 +61,11 @@ class HTMLElement(Element, ElementCSSInlineStyle):
             if handler:
                 handler(node)
 
+    def getOuterHTML(self):
+        return str(self.tag)
+
     innerHTML = property(getInnerHTML, setInnerHTML)
-    outerHTML = property(getInnerHTML, setInnerHTML)
+    outerHTML = property(getOuterHTML, setInnerHTML)
 
     # WARNING: NOT DEFINED IN W3C SPECS!
     def focus(self):

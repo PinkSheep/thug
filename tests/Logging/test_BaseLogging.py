@@ -11,7 +11,7 @@ from thug.ThugAPI.ThugOpts import ThugOpts
 
 configuration_path = thug.__configuration_path__
 config             = ConfigParser.ConfigParser()
-conf_file          = os.path.join(configuration_path, 'logging.conf.default')
+conf_file          = os.path.join(configuration_path, 'thug.conf')
 config.read(conf_file)
 
 log                    = logging.getLogger("Thug")
@@ -67,13 +67,6 @@ class TestBaseLogging:
 
         log.ThugOpts.json_logging = False
         assert not base_logging.check_module('json', config)
-
-    def test_maec11_module(self):
-        log.ThugOpts.maec11_logging = True
-        assert base_logging.check_module('maec11', config)
-
-        log.ThugOpts.maec11_logging = False
-        assert not base_logging.check_module('maec11', config)
 
     def test_mongodb_module(self):
         assert not base_logging.check_module('mongodb', config)

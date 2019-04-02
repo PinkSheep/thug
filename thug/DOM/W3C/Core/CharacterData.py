@@ -10,14 +10,11 @@ class CharacterData(Node):
         self.tag._node = self
         Node.__init__(self, doc)
 
-    def __str__(self):
-        return str(self.tag)
-
     def getData(self):
-        return self.tag
+        return self._data
 
     def setData(self, data):
-        raise DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR)
+        self._data = data
 
     data = property(getData, setData)
 
@@ -29,13 +26,25 @@ class CharacterData(Node):
         return self.data[offset:offset + count]
 
     def appendData(self, arg):
-        raise DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR)
+        self.data += arg
 
     def insertData(self, offset, arg):
-        raise DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR)
+        if offset > len(self.data):
+            raise DOMException(DOMException.INDEX_SIZE_ERR)
+
+        self.data = self.data[:offset] + arg + self.data[offset:]
 
     def deleteData(self, offset, count):
-        raise DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR)
+        length = len(self.data)
+
+        if offset > length:
+            raise DOMException(DOMException.INDEX_SIZE_ERR)
+
+        if offset + count > length:
+            self.data = self.data[:offset]
+        else:
+            self.data = self.data[:offset] + self.data[offset + count:]
 
     def replaceData(self, offset, count, arg):
-        raise DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR)
+        s = self.data[:offset] + arg + self.data[offset + count:]
+        self.data = s

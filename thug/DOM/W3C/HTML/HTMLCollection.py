@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import bs4
+
 from thug.DOM.JSClass import JSClass
 
 
@@ -12,28 +14,38 @@ class HTMLCollection(JSClass):
         return self.length
 
     def __getitem__(self, key):
-        try:
-            return self.item(int(key))
-        except TypeError:
-            return self.namedItem(str(key))
+        return self.item(int(key))
+
+    def __delitem__(self, key):
+        self.nodes.__delitem__(key)
+
+    def __getattr__(self, key):
+        return self.namedItem(key)
 
     @property
     def length(self):
         return len(self.nodes)
 
     def item(self, index):
-        # from thug.DOM.W3C.Core.DOMImplementation import DOMImplementation
+        from thug.DOM.W3C.Core.DOMImplementation import DOMImplementation
 
-        node = self.nodes[index]
+        if index < 0 or index >= self.length:
+            return None
 
-        return node
-        # return DOMImplementation.createHTMLElement(self.doc, node) if node else None
+        if isinstance(self.nodes[index], bs4.element.Tag):
+            return DOMImplementation.createHTMLElement(self.doc, self.nodes[index])
+
+        return self.nodes[index]
 
     def namedItem(self, name):
         from thug.DOM.W3C.Core.DOMImplementation import DOMImplementation
 
         for node in self.nodes:
-            if node.nodeName == name:
-                return DOMImplementation.createHTMLElement(self.doc, node) if node else None
+            if 'id' in node.attrs and node.attrs['id'] in (name, ):
+                return DOMImplementation.createHTMLElement(self.doc, node)
+
+        for node in self.nodes:
+            if 'name' in node.attrs and node.attrs['name'] in (name, ):
+                return DOMImplementation.createHTMLElement(self.doc, node)
 
         return None

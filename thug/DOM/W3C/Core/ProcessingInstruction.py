@@ -7,6 +7,8 @@ class ProcessingInstruction(Node):
     def __init__(self, doc, target, tag):
         self._target = target
         self.tag     = tag
+        self.data    = str(tag)
+
         Node.__init__(self, doc)
 
     @property
@@ -21,10 +23,6 @@ class ProcessingInstruction(Node):
     def nodeType(self):
         return Node.PROCESSING_INSTRUCTION_NODE
 
-    def getNodeValue(self):
-        return self.tag
-
-    def setNodeValue(self, value):
-        self.data = value
-
-    nodeValue = property(getNodeValue, setNodeValue)
+    @property
+    def nodeValue(self):
+        return self.data

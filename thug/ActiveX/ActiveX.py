@@ -125,9 +125,10 @@ class _ActiveXObject(object):
             log.warning("Unknown ActiveX Object: %s", cls)
             raise TypeError()
 
-        log.warning("ActiveXObject: %s", cls)
+        if log.ThugOpts.activex_ready:
+            log.warning("ActiveXObject: %s", cls)
 
-        if log.ThugOpts.features_logging:
+        if log.ThugOpts.features_logging and log.ThugOpts.activex_ready:
             log.ThugLogging.Features.increase_activex_count()
 
         for method_name, method in obj['methods'].items():
@@ -142,8 +143,7 @@ class _ActiveXObject(object):
         for attr_name, attr_value in obj['funcattrs'].items():
             self.funcattrs[attr_name] = methods[attr_value]
 
-        if cls.lower() in ('wscript.shell', ) and (not hasattr(window, 'WScript') or window.WScript is None):
-            window.WScript = self
+        if cls.lower() in ('wscript.shell', ):
             self.scriptFullName = log.ThugLogging.url if log.ThugOpts.local else ''
 
     def __setattr__(self, name, value):
@@ -214,6 +214,8 @@ def register_object(s, clsid):
     if obj is None:
         log.warning("Unknown ActiveX object: %s", clsid)
         raise TypeError()
+
+    log.warning("ActiveXObject: %s", clsid)
 
     for method_name, method in obj['methods'].items():
         # _method = new.instancemethod(method, s, s.__class__)

@@ -6,34 +6,28 @@ from thug.Magic.Magic import Magic
 log = logging.getLogger("Thug")
 
 
-@property
-def Size(self):
+def getSize(self):
     fobject = getattr(self, 'fobject', None)
-    if fobject is None:
-        return 0
-
-    content = self.fobject.getvalue()
+    content = self.fobject.getvalue() if fobject else str()
     return len(content)
 
 
 def open(self):  # pylint:disable=redefined-builtin
     log.ThugLogging.add_behavior_warn("[Adodb.Stream ActiveX] open")
     self.fobject = BytesIO()
+    self.Size = property(self.getSize)
 
 
 def Read(self, length = -1):
     log.ThugLogging.add_behavior_warn("[Adodb.Stream ActiveX] Read")
 
     fobject = getattr(self, 'fobject', None)
-    if fobject is None:
-        return None
-
-    content = self.fobject.getvalue()
+    content = self.fobject.getvalue() if fobject else str()
 
     if length > 0:
         length = min(length, len(content))
 
-    return content[:length]
+    return content[self.position:length] if length > 0 else content[self.position:]
 
 
 def Write(self, s):
@@ -70,13 +64,14 @@ def ReadText(self, NumChars = -1):
     log.ThugLogging.add_behavior_warn("[Adodb.Stream ActiveX] ReadText")
 
     if NumChars == -1:
-        return self._files[self._current]
+        return self._files[self._current][self.position:]
 
-    return self._files[self._current][:NumChars - 1]
+    return self._files[self._current][self.position:self.position + NumChars]
 
 
 def WriteText(self, data, options = None):
     log.ThugLogging.add_behavior_warn("[Adodb.Stream ActiveX] WriteText(%s)" % (data, ))
+    self.fobject.write(data)
 
 
 def Close(self):

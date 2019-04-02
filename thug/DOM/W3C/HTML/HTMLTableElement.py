@@ -2,8 +2,12 @@
 
 import logging
 import bs4 as BeautifulSoup
+
+from thug.DOM.W3C.Core.DOMException import DOMException
+
 from .HTMLElement import HTMLElement
 from .HTMLCollection import HTMLCollection
+from .HTMLTableRowElement import HTMLTableRowElement
 from .HTMLTableSectionElement import HTMLTableSectionElement
 from .HTMLTableCaptionElement import HTMLTableCaptionElement
 from .attr_property import attr_property
@@ -12,6 +16,16 @@ log = logging.getLogger("Thug")
 
 
 class HTMLTableElement(HTMLElement):
+    align       = attr_property("align")
+    bgColor     = attr_property("bgcolor")
+    border      = attr_property("border")
+    cellPadding = attr_property("cellpadding")
+    cellSpacing = attr_property("cellspacing")
+    frame       = attr_property("frame")
+    rules       = attr_property("rules")
+    summary     = attr_property("summary")
+    width       = attr_property("width")
+
     def __init__(self, doc, tag):
         HTMLElement.__init__(self, doc, tag)
         self._caption = None
@@ -39,16 +53,6 @@ class HTMLTableElement(HTMLElement):
     @property
     def tBodies(self):
         return self._tBodies
-
-    align           = attr_property("align")
-    bgColor         = attr_property("bgcolor")
-    border          = attr_property("border")
-    cellPadding     = attr_property("cellpadding")
-    cellSpacing     = attr_property("cellspacing")
-    frame           = attr_property("frame")
-    rules           = attr_property("rules")
-    summary         = attr_property("summary")
-    width           = attr_property("width")
 
     def createTHead(self):
         if self._tHead:
@@ -107,16 +111,24 @@ class HTMLTableElement(HTMLElement):
             if log.ThugOpts.Personality.isChrome() or log.ThugOpts.Personality.isSafari():
                 index = 0
 
-        # PLEASE REVIEW ME!
-        if not self.tBodies.length:
-            tBody = HTMLTableSectionElement(self.doc, BeautifulSoup.Tag(self.doc, name = 'tbody'))
-            self.tBodies.nodes.append(tBody)
-            if self.tFoot is None:
-                self.rows.nodes.append(tBody)
-            else:
-                self.rows.nodes.insert(-2, tBody)
-        else:
-            tBody = self.tBodies[-1]
-
-        row = tBody.insertRow(index)
+        row = HTMLTableRowElement(self.doc, BeautifulSoup.Tag(self.doc, name = 'tr'))
+        self.rows.nodes.insert(index, row)
         return row
+
+    def deleteRow(self, index):
+        if index < -1 or index >= len(self.rows.nodes):
+            raise DOMException(DOMException.INDEX_SIZE_ERR)
+
+        del self.rows.nodes[index]
+
+    def appendChild(self, newChild):
+        if newChild.tagName.lower() in ('tbody', ):
+            self._tBodies.nodes.append(newChild)
+
+        return super(HTMLTableElement, self).appendChild(newChild)
+
+    def removeChild(self, oldChild):
+        if oldChild.tagName.lower() in ('tbody', ):
+            self._tBodies.nodes.remove(oldChild)
+
+        return super(HTMLTableElement, self).removeChild(oldChild)

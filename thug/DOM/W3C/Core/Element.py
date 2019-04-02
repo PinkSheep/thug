@@ -48,9 +48,6 @@ class Element(Node, ElementCSSInlineStyle):
             self.__init_personality_Safari()
             return
 
-        if log.ThugOpts.Personality.isOpera():
-            self.__init_personality_Opera()
-
     def __init_personality_IE(self):
         if log.ThugOpts.Personality.browserMajorVersion > 7:
             self.querySelectorAll = self._querySelectorAll
@@ -89,19 +86,6 @@ class Element(Node, ElementCSSInlineStyle):
         if log.ThugOpts.Personality.browserMajorVersion > 4:
             self.webkitMatchesSelector = self._matches
 
-    def __init_personality_Opera(self):
-        self.querySelectorAll       = self._querySelectorAll
-        self.querySelector          = self._querySelector
-        self.getElementsByClassName = self._getElementsByClassName
-
-        if log.ThugOpts.Personality.browserMajorVersion > 20:
-            self.matches = self._matches
-
-        if log.ThugOpts.Personality.browserMajorVersion > 14:
-            self.webkitMatchesSelector = self._matches
-        elif log.ThugOpts.Personality.browserMajorVersion > 10:
-            self.oMatchesSelector = self._matches
-
     def _querySelectorAll(self, selectors):
         from .NodeList import NodeList
 
@@ -133,15 +117,6 @@ class Element(Node, ElementCSSInlineStyle):
 
         return True if s else False
 
-    def __str__(self):
-        return str(self.tag)
-
-    def __unicode__(self):
-        return unicode(self.tag)
-
-    def __repr__(self):
-        return "<Element %s at 0x%08X>" % (self.tag.name, id(self))
-
     def __eq__(self, other):
         return Node.__eq__(self, other) and hasattr(other, "tag") and self.tag == other.tag
 
@@ -151,47 +126,11 @@ class Element(Node, ElementCSSInlineStyle):
 
     @property
     def nodeName(self):
-        # if log.ThugOpts.Personality.isIE() and log.ThugOpts.Personality.browserMajorVersion == 10:
-        #    return self.tagName.upper()
-
-        # return self.tagName.lower()
-
         return self.tagName
 
     @property
     def nodeValue(self):
         return None
-
-    @property
-    def attributes(self):
-        from .NamedNodeMap import NamedNodeMap
-        return NamedNodeMap(self)
-
-    @property
-    def parentNode(self):
-        return Node.wrap(self.doc, self.tag.parent) if self.tag.parent else None
-
-    @property
-    def childNodes(self):
-        from .NodeList import NodeList
-        # return Node.wrap(self.doc, NodeList(self.doc, self.tag.contents))
-        return NodeList(self.doc, self.tag.contents)
-
-    @property
-    def firstChild(self):
-        return Node.wrap(self.doc, self.tag.contents[0]) if len(self.tag) > 0 else None
-
-    @property
-    def lastChild(self):
-        return Node.wrap(self.doc, self.tag.contents[-1]) if len(self.tag) > 0 else None
-
-    @property
-    def nextSibling(self):
-        return Node.wrap(self.doc, self.tag.next_sibling)
-
-    @property
-    def previousSibling(self):
-        return Node.wrap(self.doc, self.tag.previous_sibling)
 
     @property
     def clientWidth(self):
@@ -213,10 +152,6 @@ class Element(Node, ElementCSSInlineStyle):
     def classList(self):
         from .ClassList import ClassList
         return ClassList(self.tag)
-
-    # Introduced in DOM Level 2
-    def hasAttributes(self):
-        return self.attributes.length > 0
 
     # Introduced in DOM Level 2
     def hasAttribute(self, name):
@@ -248,9 +183,7 @@ class Element(Node, ElementCSSInlineStyle):
                 if not flags & 1:
                     name = name.lower()
 
-            value = self.tag[name] if self.tag.has_attr(name) else None
-        else:
-            value = self.tag[name] if self.tag.has_attr(name) else ""
+        value = self.tag.attrs[name] if name in self.tag.attrs else None
 
         if isinstance(value, list):
             value = " ".join(value)
@@ -258,6 +191,10 @@ class Element(Node, ElementCSSInlineStyle):
         return value
 
     def setAttribute(self, name, value):
+        from thug.DOM.W3C import w3c
+        from thug.DOM.Window import Window
+        from thug.DOM.DFT import DFT
+
         if log.ThugOpts.features_logging:
             log.ThugLogging.Features.increase_setattribute_count()
 
@@ -274,16 +211,16 @@ class Element(Node, ElementCSSInlineStyle):
 
                 for css in [p for p in FF_STYLES if log.ThugOpts.Personality.browserMajorVersion >= p[0]]:
                     if css[1] in value:
-                        self.tag[name] = _value
+                        self.tag.attrs[name] = _value
                 return
 
             if name in ('type', ):
                 for _input in [p for p in FF_INPUTS if log.ThugOpts.Personality.browserMajorVersion > p[0]]:
                     if _input[1] in value:
-                        self.tag[name] = value
+                        self.tag.attrs[name] = value
                 return
 
-        self.tag[name] = value
+        self.tag.attrs[name] = value
 
         if name.lower() in ('src', 'archive'):
             s = urlparse.urlsplit(value)
@@ -298,10 +235,7 @@ class Element(Node, ElementCSSInlineStyle):
             except Exception:
                 return
 
-            if response is None:
-                return
-
-            if response.status_code == 404:
+            if response is None or not response.ok:
                 return
 
             ctype = response.headers.get('content-type', None)
@@ -311,27 +245,35 @@ class Element(Node, ElementCSSInlineStyle):
             handler = log.MIMEHandler.get_handler(ctype)
             if handler:
                 handler(self.doc.window.url, response.content)
+                return
+
+            if ctype.startswith(('text/html', )):
+                doc = w3c.parseString(response.content)
+                window = Window(response.url, doc, personality = log.ThugOpts.useragent)
+                dft = DFT(window)
+                dft.run()
 
     def removeAttribute(self, name):
         if log.ThugOpts.features_logging:
             log.ThugLogging.Features.increase_removeattribute_count()
 
-        del self.tag[name]
+        if name in self.tag.attrs:
+            del self.tag.attrs[name]
 
     def getAttributeNode(self, name):
         from .Attr import Attr
-        return Attr(self.doc, self, name) if self.tag.has_attr(name) else None
+        return Attr(self.doc, self, name) if name in self.tag.attrs else None
 
     def setAttributeNode(self, attr):
-        self.tag[attr.name] = attr.value
+        self.tag.attrs[attr.name] = attr.value
 
     def removeAttributeNode(self, attr):
-        del self.tag[attr.name]
+        if attr.name in self.tag.attrs:
+            del self.tag.attrs[attr.name]
 
     def getElementsByTagName(self, tagname):
         from .NodeList import NodeList
         return NodeList(self.doc, self.tag.find_all(tagname))
-        # return self.doc.getElementsByTagName(tagname)
 
     def _getElementsByClassName(self, classname):
         from .NodeList import NodeList

@@ -36,9 +36,6 @@ class Document(Node, DocumentEvent, DocumentView):
             self.__init_personality_Safari()
             return
 
-        if log.ThugOpts.Personality.isOpera():
-            self.__init_personality_Opera()
-
     def __init_characterSet(self):
         self._character_set = ""
         for meta in self.doc.find_all("meta"):
@@ -83,12 +80,6 @@ class Document(Node, DocumentEvent, DocumentView):
         self.characterSet           = self._characterSet
         self.inputEncoding          = self._inputEncoding
 
-    def __init_personality_Opera(self):
-        self.querySelectorAll       = self._querySelectorAll
-        self.querySelector          = self._querySelector
-        self.getElementsByClassName = self._getElementsByClassName
-        self.characterSet           = self._characterSet
-
     def _querySelectorAll(self, selectors):
         from .NodeList import NodeList
 
@@ -111,15 +102,6 @@ class Document(Node, DocumentEvent, DocumentView):
             return DOMImplementation.createHTMLElement(self, s[0])
 
         return None
-
-    def __str__(self):
-        return str(self.doc)
-
-    def __unicode__(self):
-        return unicode(self.doc)
-
-    def __repr__(self):
-        return "<Document at 0x%08X>" % id(self)
 
     # Introduced in DOM Level 3
     @property
@@ -147,11 +129,16 @@ class Document(Node, DocumentEvent, DocumentView):
     def doctype(self):
         from .DocumentType import DocumentType
 
-        for tag in self.doc:
-            if isinstance(tag, BeautifulSoup.Declaration) and tag.startswith("DOCTYPE"):
-                return DocumentType(self.doc, tag)
+        _doctype = getattr(self, '_doctype', None)
+        if _doctype:
+            return _doctype
 
-        return None
+        tags = [t for t in self.doc if isinstance(t, BeautifulSoup.Doctype)]
+        if not tags:
+            return None
+
+        self._doctype = DocumentType(self.doc, tags[0])
+        return self._doctype
 
     @property
     def implementation(self):
@@ -163,8 +150,6 @@ class Document(Node, DocumentEvent, DocumentView):
 
         html = self.doc.find('html')
         return Element(self, html if html else self.doc)
-
-    onCreateElement = None
 
     def getCharacterSet(self):
         return self._character_set
@@ -198,11 +183,7 @@ class Document(Node, DocumentEvent, DocumentView):
             if tagname.startswith('<') and '>' in tagname:
                 tagname = tagname[1:].split('>')[0]
 
-        element = DOMImplementation.createHTMLElement(self, BeautifulSoup.Tag(parser = self.doc, name = tagname))
-        if self.onCreateElement:
-            self.onCreateElement(element)  # pylint:disable=not-callable
-
-        return element
+        return DOMImplementation.createHTMLElement(self, BeautifulSoup.Tag(parser = self.doc, name = tagname))
 
     def createDocumentFragment(self):
         from .DocumentFragment import DocumentFragment
@@ -239,7 +220,7 @@ class Document(Node, DocumentEvent, DocumentView):
     def getElementsByTagName(self, tagname):
         from .NodeList import NodeList
 
-        if log.ThugOpts.Personality.isIE() and tagname in ('*', ):
+        if tagname in ('*', ):
             s = [p for p in self.doc.find_all(text = False)]
             return NodeList(self.doc, s)
 

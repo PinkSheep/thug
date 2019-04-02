@@ -16,7 +16,9 @@ class TestJQuerySamples(object):
         thug.set_useragent('win7ie90')
         thug.set_events('click,storage')
         thug.disable_cert_logging()
-
+        thug.set_file_logging()
+        thug.set_json_logging()
+        thug.set_features_logging()
         thug.log_init(sample)
         thug.run_local(sample)
 
@@ -106,7 +108,7 @@ class TestJQuerySamples(object):
     def test_jquery_12(self, caplog):
         sample   = os.path.join(self.jquery_path, "test-jquery-12.html")
         expected = ["[Window] Alert Text: 2",
-                    "[Window] Alert Text: <h1>Foo</h1>"]
+                    "[Window] Alert Text: Foo"]
 
         self.do_perform_test(caplog, sample, expected)
 

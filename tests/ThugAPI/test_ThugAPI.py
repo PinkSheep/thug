@@ -60,12 +60,6 @@ class TestThugAPI:
         self.thug_api.set_json_logging()
         assert self.thug_api.get_json_logging()
 
-    def test_maec_logging(self):
-        assert not self.thug_api.get_maec11_logging()
-
-        self.thug_api.set_maec11_logging()
-        assert self.thug_api.get_maec11_logging()
-
     def test_elasticsearch_logging(self):
         assert not self.thug_api.get_elasticsearch_logging()
 
@@ -311,6 +305,11 @@ class TestThugAPI:
         rules = log.TextClassifier._rules
         assert rules['namespace1'] in (self.yara_file, )
 
+    def test_add_cookieclassifier(self):
+        self.thug_api.add_cookieclassifier(self.yara_file)
+        rules = log.CookieClassifier._rules
+        assert rules['namespace1'] in (self.yara_file, )
+
     def test_add_sampleclassifier(self):
         self.thug_api.add_sampleclassifier(self.yara_file)
         rules = log.SampleClassifier._rules
@@ -341,6 +340,11 @@ class TestThugAPI:
         filters = log.TextClassifier._filters
         assert filters['namespace1'] in (self.yara_file, )
 
+    def test_add_cookiefilter(self):
+        self.thug_api.add_cookiefilter(self.yara_file)
+        filters = log.CookieClassifier._filters
+        assert filters['namespace1'] in (self.yara_file, )
+
     def test_add_samplefilter(self):
         self.thug_api.add_samplefilter(self.yara_file)
         filters = log.SampleClassifier._filters
@@ -361,5 +365,5 @@ class TestThugAPI:
         pass
 
     def test_analyse(self):
-        with pytest.raises(NotImplementedError, message="method analyze is abstract"):
+        with pytest.raises(NotImplementedError):
             self.thug_api.analyze()

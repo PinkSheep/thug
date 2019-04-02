@@ -34,9 +34,6 @@ class Node(JSClass, EventTarget):
         EventTarget.__init__(self)
         self.__init_personality()
 
-    def __repr__(self):
-        return "<Node %s at 0x%08X>" % (self.nodeName, id(self))
-
     def __eq__(self, other):
         return hasattr(other, "doc") and self.doc == other.doc
 
@@ -60,9 +57,6 @@ class Node(JSClass, EventTarget):
             self.__init_personality_Safari()
             return
 
-        if log.ThugOpts.Personality.isOpera():
-            self.__init_personality_Opera()
-
     def __init_personality_IE(self):
         self.applyElement = self._applyElement
 
@@ -79,9 +73,6 @@ class Node(JSClass, EventTarget):
     def __init_personality_Safari(self):
         self.compareDocumentPosition = self._compareDocumentPosition
 
-    def __init_personality_Opera(self):
-        self.compareDocumentPosition = self._compareDocumentPosition
-
     @property
     @abstractmethod
     def nodeType(self):
@@ -94,11 +85,11 @@ class Node(JSClass, EventTarget):
 
     @abstractmethod
     def getNodeValue(self):
-        return None
+        pass
 
     @abstractmethod
     def setNodeValue(self, value):
-        raise DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR)
+        pass
 
     nodeValue = property(getNodeValue, setNodeValue)
 
@@ -114,7 +105,7 @@ class Node(JSClass, EventTarget):
     @property
     def attributes(self):
         from .NamedNodeMap import NamedNodeMap
-        return NamedNodeMap(self)
+        return NamedNodeMap(self.doc, self.tag)
 
     @property
     def childNodes(self):
@@ -160,13 +151,8 @@ class Node(JSClass, EventTarget):
     @property
     def ownerDocument(self):
         return log.DFT.window.doc
-        # return self.doc
 
     def findChild(self, child):
-        # try:
-        #    return self.tag.contents.index(child.tag)
-        # except:
-        #    return -1
         if getattr(child, 'tag', None) and child.tag in self.tag.contents:
             childHash = hash(child.tag._node)
 
@@ -181,7 +167,7 @@ class Node(JSClass, EventTarget):
 
     @property
     def innerText(self):
-        return self.tag.string
+        return str(self.tag.string)
 
     def is_readonly(self, node):
         return node.nodeType in (Node.DOCUMENT_TYPE_NODE,
@@ -192,8 +178,7 @@ class Node(JSClass, EventTarget):
     def is_text(self, node):
         return node.nodeType in (Node.TEXT_NODE,
                                  Node.PROCESSING_INSTRUCTION_NODE,
-                                 Node.CDATA_SECTION_NODE,
-                                 Node.COMMENT_NODE, )
+                                 Node.CDATA_SECTION_NODE, )
 
     def insertBefore(self, newChild, refChild):
         if log.ThugOpts.features_logging:
@@ -213,10 +198,6 @@ class Node(JSClass, EventTarget):
         if not isinstance(refChild, Node):
             raise DOMException(DOMException.HIERARCHY_REQUEST_ERR)
 
-        # index = self.findChild(refChild)
-        # if index < 0 and not self.is_text(refChild):
-        #    raise DOMException(DOMException.NOT_FOUND_ERR)
-
         # If the newChild is already in the tree, it is first removed
         if getattr(newChild, 'tag', None) and newChild.tag in self.tag.contents:
             newChildHash = hash(newChild.tag._node)
@@ -225,10 +206,8 @@ class Node(JSClass, EventTarget):
                 if getattr(p, '_node', None) is None:
                     continue
 
-                if newChildHash == hash(p._node):
+                if newChildHash in (hash(p._node), ):
                     p.extract()
-
-            # self.tag.contents.remove(newChild.tag)
 
         index = self.findChild(refChild)
         if index < 0 and not self.is_text(refChild):
@@ -238,8 +217,10 @@ class Node(JSClass, EventTarget):
             self.tag.insert(index, newChild.data.output_ready(formatter = lambda x: x))
             return newChild
 
+        if newChild.nodeType in (Node.COMMENT_NODE, ):
+            return newChild
+
         if newChild.nodeType in (Node.DOCUMENT_FRAGMENT_NODE, ):
-            # self.tag.insert(index, newChild.tag.findChild())
             node = None
 
             for p in newChild.tag.find_all_next():
@@ -280,16 +261,19 @@ class Node(JSClass, EventTarget):
             raise DOMException(DOMException.NOT_FOUND_ERR)
 
         if self.is_text(newChild):
-            self.tag.contents[index] = newChild.data.output_ready(formatter = lambda x: x)
+            self.tag.contents[index].replace_with(newChild.data.output_ready(formatter = lambda x: x))
+            return oldChild
+
+        if newChild.nodeType in (Node.COMMENT_NODE, ):
+            self.tag.contents[index].replace_with(newChild.data)
             return oldChild
 
         if newChild.nodeType in (Node.DOCUMENT_FRAGMENT_NODE, ):
-            # self.tag.contents[index] = newChild.tag.findChild()
             node = None
 
             for p in newChild.tag.find_all_next():
                 if node is None:
-                    self.tag.contents[index] = p
+                    self.tag.contents[index].replace_with(p)
                 else:
                     node.append(p)
 
@@ -297,7 +281,7 @@ class Node(JSClass, EventTarget):
 
             return oldChild
 
-        self.tag.contents[index] = newChild.tag
+        self.tag.contents[index].replace_with(newChild.tag)
         return oldChild
 
     def removeChild(self, oldChild):
@@ -327,7 +311,6 @@ class Node(JSClass, EventTarget):
 
                 if oldChildHash == hash(p._node):
                     p.extract()
-            # self.tag.contents.remove(oldChild.tag)
 
         return oldChild
 
@@ -358,14 +341,16 @@ class Node(JSClass, EventTarget):
 
                 if newChildHash == hash(p._node):
                     p.extract()
-            # self.tag.contents.remove(newChild.tag)
 
         if self.is_text(newChild):
             self.tag.append(newChild.data.output_ready(formatter = lambda x: x))
             return newChild
 
+        if newChild.nodeType in (Node.COMMENT_NODE, ):
+            self.tag.append(newChild.data)
+            return newChild
+
         if newChild.nodeType in (Node.DOCUMENT_FRAGMENT_NODE, ):
-            # self.tag.append(newChild.tag.findChild())
             node = self.tag
             for p in newChild.tag.find_all_next():
                 node.append(p)
@@ -379,14 +364,14 @@ class Node(JSClass, EventTarget):
     def hasChildNodes(self):
         return len(self.tag.contents) > 0
 
-    def _applyElement(self, element, where = 'inside'):
+    def _applyElement(self, element, where = 'outside'):
         where = where.lower()
 
         if where in ('inside', ):
             self.appendChild(element)
 
         if where in ('outside', ):
-            self.insertBefore(element, self)
+            self.tag.wrap(element.tag)
 
     # Modified in DOM Level 2
     def normalize(self):
@@ -422,8 +407,7 @@ class Node(JSClass, EventTarget):
         if cloned.nodeType in (Node.ELEMENT_NODE, ) and deep is False:
             cloned.tag.string = ''
 
-        # return cloned
-        return self.wrap(self.doc, cloned.tag)
+        return cloned
 
     @staticmethod
     def wrap(doc, obj):

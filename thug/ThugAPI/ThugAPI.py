@@ -18,7 +18,6 @@
 
 import os
 import sys
-import PyV8
 import logging
 import six.moves.urllib.parse as urlparse
 
@@ -43,6 +42,7 @@ from thug.Logging.ThugLogging import ThugLogging
 from .IThugAPI import IThugAPI
 from .ThugOpts import ThugOpts
 from .Watchdog import Watchdog
+from .JSLocker import JSLocker
 from .OpaqueFilter import OpaqueFilter
 from .abstractmethod import abstractmethod
 from .ThugVulnModules import ThugVulnModules
@@ -63,14 +63,19 @@ log.setLevel(logging.WARN)
 class ThugAPI(object):
     def __init__(self, configuration_path = thug.__configuration_path__):
         self.__init_conf(configuration_path)
+        self.__init_jslocker()
         self.__init_core()
         self.__init_classifiers()
+        self.__init_pyhooks()
         self.__init_extensions()
         self.__init_trace()
 
     def __init_conf(self, configuration_path):
         log.configuration_path = configuration_path
         log.personalities_path = os.path.join(configuration_path, "personalities") if configuration_path else None
+
+    def __init_jslocker(self):
+        self.JSLocker = JSLocker().jslocker
 
     def __init_core(self):
         log.ThugOpts        = ThugOpts()
@@ -99,6 +104,9 @@ class ThugAPI(object):
             'cookie' : log.CookieClassifier,
             'text'   : log.TextClassifier
         }
+
+    def __init_pyhooks(self):
+        log.PyHooks = dict()
 
     def __init_extensions(self):
         log.JSExtensions = list()
@@ -148,12 +156,6 @@ class ThugAPI(object):
 
     def set_json_logging(self):
         log.ThugOpts.json_logging = True
-
-    def get_maec11_logging(self):
-        return log.ThugOpts.maec11_logging
-
-    def set_maec11_logging(self):
-        log.ThugOpts.maec11_logging = True
 
     def get_elasticsearch_logging(self):
         return log.ThugOpts.elasticsearch_logging
@@ -371,6 +373,12 @@ class ThugAPI(object):
         for c in self.classifiers_map.values():
             c.reset_customclassifiers()
 
+    def register_pyhook(self, module, method, hook):
+        if module not in log.PyHooks:
+            log.PyHooks[module] = dict()
+
+        log.PyHooks[module][method] = hook
+
     def log_event(self):
         log.ThugLogging.log_event()
 
@@ -381,7 +389,7 @@ class ThugAPI(object):
         if log.Trace:
             sys.settrace(log.Trace)
 
-        with PyV8.JSLocker():
+        with self.JSLocker():
             with Watchdog(log.ThugOpts.timeout, callback = self.watchdog_cb):
                 dft = DFT(window)
                 dft.run()

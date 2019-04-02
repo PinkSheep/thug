@@ -22,7 +22,7 @@ import json
 import logging
 import zipfile
 import tempfile
-from six import StringIO
+from six import BytesIO
 import bs4 as BeautifulSoup
 import rarfile
 
@@ -262,36 +262,52 @@ class MIMEHandler(dict):
         if len(content) < self.MIN_ZIP_FILE_SIZE:
             return False
 
-        fp = StringIO(content)
+        fp = BytesIO(content)
         if not zipfile.is_zipfile(fp):
             return False
 
         try:
             zipdata = zipfile.ZipFile(fp)
-        except Exception:
+        except Exception as e:
+            log.warning("[MIMEHANDLER (ZIP)][ERROR] %s", str(e))
             return False
 
         log.ThugLogging.log_file(content, url, sampletype = 'ZIP')
 
         for filename in zipdata.namelist():
+            sample = None
+
             try:
                 data = zipdata.read(filename)
-            except Exception:
+            except Exception as e:
+                log.warning("[MIMEHANDLER (ZIP)][ERROR] %s", str(e))
                 continue
 
             if not data:
                 continue
 
             if filename.lower().endswith('.js'):
-                self.window.evalScript(data)
+                window = getattr(self, 'window', None)
 
-            sample = log.ThugLogging.log_file(data, url)
+                if window:
+                    try:
+                        with window.context as ctxt:
+                            ctxt.eval(data)
+                    except Exception as e:
+                        log.warning("[MIMEHANDLER (ZIP)][ERROR] %s", str(e))
+
+                sample = log.ThugLogging.log_file(data, url, sampletype = 'JS')
+
+            if sample is None:
+                sample = log.ThugLogging.log_file(data, url)
+
             if sample is None:
                 continue
 
             try:
                 md5 = sample['md5']
-            except Exception:
+            except Exception as e:
+                log.warning("[MIMEHANDLER (ZIP)][ERROR] %s", str(e))
                 continue
 
             unzipped = os.path.join(log.ThugLogging.baseDir, 'unzipped')
@@ -309,7 +325,8 @@ class MIMEHandler(dict):
 
         try:
             rardata = rarfile.RarFile(rfile)
-        except Exception:
+        except Exception as e:
+            log.warning("[MIMEHANDLER (RAR)][ERROR] %s", str(e))
             os.remove(rfile)
             return False
 
@@ -318,7 +335,8 @@ class MIMEHandler(dict):
         for filename in rardata.namelist():
             try:
                 data = rardata.read(filename)
-            except Exception:
+            except Exception as e:
+                log.warning("[MIMEHANDLER (RAR)][ERROR] %s", str(e))
                 continue
 
             if not data:
@@ -330,7 +348,8 @@ class MIMEHandler(dict):
 
             try:
                 md5 = sample['md5']
-            except Exception:
+            except Exception as e:
+                log.warning("[MIMEHANDLER (RAR)][ERROR] %s", str(e))
                 continue
 
             unzipped = os.path.join(log.ThugLogging.baseDir, 'unzipped')
@@ -372,7 +391,7 @@ class MIMEHandler(dict):
         for jar in jars:
             try:
                 url = "%s%s" % (codebase, jar.attrs['href'], )
-                self.window._navigator.fetch(url, headers = headers, redirect_type = "JNLP")
+                log.DFT.window._navigator.fetch(url, headers = headers, redirect_type = "JNLP")
             except Exception:
                 pass
 
@@ -391,7 +410,7 @@ class MIMEHandler(dict):
         for key in content.keys():
             if key.lower() in ('@content.downloadurl', ):
                 try:
-                    self.window._navigator.fetch(content[key], headers = headers, redirect_type = "JSON")
+                    log.DFT.window._navigator.fetch(content[key], headers = headers, redirect_type = "JSON")
                 except Exception:
                     pass
 

@@ -20,7 +20,6 @@ import logging
 import sys
 import socket
 import ssl
-import unittest
 import six.moves.urllib.parse as urlparse
 import requests
 
@@ -162,7 +161,8 @@ class HTTPSession(object):
         }
 
         if window and window.url not in ('about:blank', ):
-            http_headers['Referer'] = self.normalize_url(window, window.url)
+            referer = window.url if window.url.startswith('http') else 'http://{}'.format(window.url)
+            http_headers['Referer'] = referer
 
         # REVIEW ME!
         # if window and window.doc.cookie:
@@ -182,8 +182,12 @@ class HTTPSession(object):
             return
 
         port = _url.port if _url.port else 443
-        certificate = ssl.get_server_certificate((_url.netloc, port), ssl_version = ssl.PROTOCOL_SSLv23)
-        log.ThugLogging.log_certificate(url, certificate)
+
+        try:
+            certificate = ssl.get_server_certificate((_url.netloc, port), ssl_version = ssl.PROTOCOL_SSLv23)
+            log.ThugLogging.log_certificate(url, certificate)
+        except Exception as e:
+            log.warning("[SSL ERROR] %s", str(e))
 
     def fetch(self, url, method = "GET", window = None, personality = None, headers = None, body = None):
         if log.URLClassifier.filter(url):
@@ -216,6 +220,8 @@ class HTTPSession(object):
         if not response.ok:
             return None
 
+        log.ThugLogging.retrieved_urls.add(url)
+
         self.filecount += 1
 
         if log.ThugOpts.web_tracking:
@@ -240,36 +246,10 @@ class HTTPSession(object):
     def about_blank(self, url):
         return url.lower() in ('about:blank', )
 
+    def get_cookies(self):
+        return self.session.cookies
 
-class HTTPSessionTest(unittest.TestCase):
-    def setUp(self):
-        self.check_ip_url = "http://ifconfig.me/ip"
+    def set_cookies(self, name, value):
+        self.session.cookies.set(name, value)
 
-    def testHTTPSession(self):
-        s = HTTPSession()
-        r = s.session.get("http://www.google.com")
-        self.assertTrue(r.ok)
-
-    def testHTTPSessionSOCKS(self):
-        stor = HTTPSession()
-        rtor = stor.session.get("https://www.dan.me.uk/torlist/")
-        tor_exit_nodes = rtor.text.split("\n")
-
-        s = HTTPSession(proxy = "socks5://127.0.0.1:9050")
-        r = s.session.get(self.check_ip_url)
-        ipaddress = r.text.replace("\n", "")
-        self.assertIn(ipaddress, tor_exit_nodes)
-
-    def testHTTPSessionNotSupportedMethod(self):
-        s = HTTPSession()
-        r = s.fetch("http://www.google.com", method = "NOTSUPPORTED")
-        self.assertEqual(r, None)
-
-    def testHTTPSessionGET(self):
-        s = HTTPSession()
-        r = s.fetch("http://www.google.com")
-        self.assertTrue(r.ok)
-
-
-if __name__ == '__main__':
-    unittest.main()
+    cookies = property(get_cookies, set_cookies)

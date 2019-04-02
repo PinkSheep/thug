@@ -1,0 +1,19 @@
+<html>
+<body>
+<script>
+	fragment = document.createDocumentFragment();
+
+	alert(fragment.nodeValue);
+
+	div = document.createElement('div')
+	p   = document.createElement('p');
+
+	p.innerHTML = "Test";
+	div.appendChild(p);
+
+	fragment.appendChild(div);
+	document.body.appendChild(fragment);
+	alert(document.body.innerHTML);
+</script>
+</body>
+<html>

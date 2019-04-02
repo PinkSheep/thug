@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from thug.DOM.W3C.Core.DOMException import DOMException
 from .HTMLCollection import HTMLCollection
 
 
@@ -8,11 +7,3 @@ from .HTMLCollection import HTMLCollection
 class HTMLOptionsCollection(HTMLCollection):
     def __init__(self, doc, nodes):
         HTMLCollection.__init__(self, doc, nodes)
-
-    def getLength(self):
-        return len(self.nodes)
-
-    def setLength(self, value):
-        raise DOMException(DOMException.NOT_SUPPORTED_ERR)
-
-    length = property(getLength, setLength)

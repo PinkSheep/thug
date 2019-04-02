@@ -28,7 +28,7 @@ log.Encoding           = Encoding()
 class TestMongoDB:
     cve  = "CVE-XXXX"
     url  = "www.example.com"
-    data = "sample-data"
+    data = b"sample-data"
     desc = "sample-desc"
     cert = "sample-cert"
 
@@ -40,7 +40,7 @@ class TestMongoDB:
                  'md5': 'd4be8fbeb3a219ec8c6c26ffe4033a16'}
 
     base_dir       = "path/to/sample/basedir"
-    code_snippet   = "var i = 12;"
+    code_snippet   = b"var i = 12;"
     base64_snippet = "dmFyIGkgPSAxMjs="
     language       = "Javascript"
     relationship   = "Contained_Inside"
@@ -69,7 +69,7 @@ class TestMongoDB:
 
     def test_init(self):
         """
-            Testing for conf file 'logging.conf.default'
+            Testing for conf file 'thug.conf'
         """
         mongo = MongoDB(thug.__version__)
         assert not mongo.enabled
@@ -155,21 +155,6 @@ class TestMongoDB:
         # Testing for duplicate entry
         self.mongo.log_file(self.file_data)
         assert self.mongo.samples.count_documents({}) in (1, )
-
-    def test_log_maec11(self):
-        self.mongo.enabled = False
-        self.mongo.log_maec11(self.base_dir)
-        assert self.mongo.maec11.count_documents({}) in (0, )
-
-        self.mongo.enabled = True
-        self.mongo.log_maec11(self.base_dir)
-        assert self.mongo.maec11.count_documents({}) in (0, )
-
-        # Enabling maec11_logging
-        log.ThugOpts.maec11_logging = True
-        self.mongo.log_maec11(self.base_dir)
-        log.ThugOpts.maec11_logging = False
-        assert self.mongo.maec11.count_documents({}) in (0, )
 
     def test_log_json(self):
         self.mongo.enabled = False

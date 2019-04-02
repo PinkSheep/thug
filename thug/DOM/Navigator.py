@@ -64,9 +64,6 @@ class Navigator(JSClass):
             self.__init_personality_Safari()
             return
 
-        if log.ThugOpts.Personality.isOpera():
-            self.__init_personality_Opera()
-
     def __init_personality_IE(self):
         from .UserProfile import UserProfile
 
@@ -115,15 +112,6 @@ class Navigator(JSClass):
         self.vendor     = self._vendor
         self.vendorSub  = self._vendorSub
         self.language   = self._language
-
-    def __init_personality_Opera(self):
-        self.mimeTypes       = self._mimeTypes
-        self.plugins         = self._plugins
-        self.taintEnabled    = self._taintEnabled
-        self.appMinorVersion = self._appMinorVersion
-        self.browserLanguage = self._browserLanguage
-        self.language        = self._language
-        self.userLanguage    = self._userLanguage
 
     @property
     def window(self):
@@ -376,7 +364,7 @@ class Navigator(JSClass):
             log.ThugLogging.Features.add_characters_count(len(response.text))
             log.ThugLogging.Features.add_whitespaces_count(len([a for a in response.text if a.isspace()]))
 
-        handler = log.MIMEHandler.get_handler(mtype)
+        handler = log.MIMEHandler.get_handler(ctype)
         if handler:
             handler(response.url, response.content)
 

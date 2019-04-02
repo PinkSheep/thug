@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 
-# import bs4 as BeautifulSoup
-
 import logging
+
 log = logging.getLogger("Thug")
 
 
@@ -11,12 +10,6 @@ def text_property(readonly = False):
         return str(self.tag.string) if self.tag.string else ""
 
     def setter(self, text):
-        # if self.tag.string:
-        #    self.tag.contents[0] = BeautifulSoup.NavigableString(text)
-        # else:
-        #    self.tag.append(text)
-        #
-        # self.tag.string = self.tag.contents[0]
         self.tag.string = text
 
         if self.tagName.lower() in ('script', ):
@@ -25,7 +18,7 @@ def text_property(readonly = False):
 
             script_type = self.tag.attrs.get('type', None)
             if script_type and 'vbscript' in script_type.lower():
-                log.VBSClassifier.classify(log.ThugLogging.url if log.ThugOpts.local else log.last_url_fetched, text)
+                log.VBSClassifier.classify(log.ThugLogging.url if log.ThugOpts.local else log.last_url, text)
 
             self.doc.window.evalScript(text, self.tag.string)
 

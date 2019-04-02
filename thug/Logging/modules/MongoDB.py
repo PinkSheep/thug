@@ -48,29 +48,24 @@ class MongoDB(object):
 
         if log.ThugOpts.mongodb_address:
             self.opts['host'] = log.ThugOpts.mongodb_address
-            self.opts['enable'] = 'True'
+            self.opts['enable'] = True
             return True
 
-        config = ConfigParser.ConfigParser()
-
-        conf_file = os.path.join(log.configuration_path, 'logging.conf')
-
-        if not os.path.exists(conf_file):
-            conf_file = os.path.join(log.configuration_path, 'logging.conf.default')
-
+        conf_file = os.path.join(log.configuration_path, 'thug.conf')
         if not os.path.exists(conf_file):
             self.enabled = False
             return False
 
+        config = ConfigParser.ConfigParser()
         config.read(conf_file)
 
-        for option in config.options('mongodb'):
-            self.opts[option] = config.get('mongodb', option)
-
-        if self.opts['enable'].lower() in ('false', ):
+        self.opts['enable'] = config.getboolean('mongodb', 'enable')
+        if not self.opts['enable']:
             self.enabled = False
+            return False
 
-        return self.enabled
+        self.opts['host'] = config.get('mongodb', 'host')
+        return True
 
     def __init_db(self):
         client = getattr(pymongo, 'MongoClient', None)
@@ -96,7 +91,7 @@ class MongoDB(object):
         self.exploits     = db.exploits
         self.classifiers  = db.classifiers
         self.codes        = db.codes
-        self.maec11       = db.maec11
+        self.cookies      = db.cookies
         self.json         = db.json
         dbfs              = connection.thugfs
         self.fs           = gridfs.GridFS(dbfs)
@@ -130,7 +125,8 @@ class MongoDB(object):
     def set_url(self, url):
         if not self.enabled:
             return
-        self.graph  = ExploitGraph(url)
+
+        self.graph = ExploitGraph(url)
 
         self.url_id = self.get_url(url)
         if self.url_id is None:
@@ -266,6 +262,38 @@ class MongoDB(object):
 
         self.classifiers.insert_one(classification)
 
+    def log_cookies(self):
+        attrs = ('comment',
+                 'comment_url',
+                 'discard',
+                 'domain',
+                 'domain_initial_dot',
+                 'domain_specified',
+                 'expires',
+                 'name',
+                 'path',
+                 'path_specified',
+                 'port',
+                 'port_specified',
+                 'rfc2109',
+                 'secure',
+                 'value',
+                 'version')
+
+        for cookie in log.HTTPSession.cookies:
+            item = {
+                'analysis_id' : self.analysis_id,
+            }
+
+            for attr in attrs:
+                value = getattr(cookie, attr, None)
+                if value is None:
+                    continue
+
+                item[attr] = value
+
+            self.cookies.insert_one(item)
+
     def get_url_from_location(self, md5):
         result = self.locations.find_one({'analysis_id' : self.analysis_id,
                                           'md5'         : md5})
@@ -302,29 +330,6 @@ class MongoDB(object):
 
         self.samples.insert_one(r)
 
-    def log_maec11(self, basedir):
-        if not self.enabled:
-            return
-
-        if not log.ThugOpts.maec11_logging:
-            return
-
-        p = log.ThugLogging.modules.get('maec11', None)
-        if p is None:
-            return
-
-        m = getattr(p, 'get_maec11_data', None)
-        if m is None:
-            return
-
-        report = m(basedir)
-        analysis = {
-            'analysis_id'   : self.analysis_id,
-            'report'        : report
-        }
-
-        self.maec11.insert_one(analysis)
-
     def log_json(self, basedir):
         if not self.enabled:
             return
@@ -352,7 +357,6 @@ class MongoDB(object):
         if not self.enabled:
             return
 
-        self.log_maec11(basedir)
         self.log_json(basedir)
 
         G = self.graph.draw()

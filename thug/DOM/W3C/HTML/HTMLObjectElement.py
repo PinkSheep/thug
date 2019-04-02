@@ -5,11 +5,32 @@ import logging
 from .HTMLElement import HTMLElement
 from .attr_property import attr_property
 from .compatibility import thug_long
+from .form_property import form_property
 
 log = logging.getLogger("Thug")
 
 
 class HTMLObjectElement(HTMLElement):
+    code     = attr_property("code")
+    align    = attr_property("align")
+    archive  = attr_property("archive")
+    border   = attr_property("border")
+    classid  = attr_property("classid")
+    codeBase = attr_property("codebase")
+    codeType = attr_property("codetype")
+    data     = attr_property("data")
+    declare  = attr_property("declare", bool)
+    form     = form_property()
+    height   = attr_property("height")
+    hspace   = attr_property("hspace", thug_long)
+    name     = attr_property("name")
+    standBy  = attr_property("standby")
+    tabIndex = attr_property("tabindex", thug_long, default = 0)
+    type     = attr_property("type")
+    useMap   = attr_property("usemap")
+    vspace   = attr_property("vspace", thug_long)
+    width    = attr_property("width")
+
     def __init__(self, doc, tag):
         HTMLElement.__init__(self, doc, tag)
         self._window = self.doc.window
@@ -29,7 +50,6 @@ class HTMLObjectElement(HTMLElement):
         log.info("HTMLObjectElement attribute not found: %s", (name, ))
         raise AttributeError
 
-    # PLEASE REVIEW ME!
     def __setattr__(self, name, value):
         if name == 'classid':
             self.setAttribute(name, value)
@@ -42,29 +62,6 @@ class HTMLObjectElement(HTMLElement):
 
         if name in self.__dict__['funcattrs']:
             self.__dict__['funcattrs'][name](value)
-
-    @property
-    def form(self):
-        pass
-
-    code            = attr_property("code")
-    align           = attr_property("align")
-    archive         = attr_property("archive")
-    border          = attr_property("border")
-    classid         = attr_property("classid")
-    codeBase        = attr_property("codebase")
-    codeType        = attr_property("codetype")
-    data            = attr_property("data")
-    declare         = attr_property("declare", bool)
-    height          = attr_property("height")
-    hspace          = attr_property("hspace", thug_long)
-    name            = attr_property("name")
-    standBy         = attr_property("standby")
-    tabIndex        = attr_property("tabindex", thug_long, default = 0)
-    type            = attr_property("type")
-    useMap          = attr_property("usemap")
-    vspace          = attr_property("vspace", thug_long)
-    width           = attr_property("width")
 
     # Introduced in DOM Level 2
     @property

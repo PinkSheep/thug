@@ -21,6 +21,7 @@ import re
 import string
 import base64
 import random
+import types
 import logging
 
 import six
@@ -30,7 +31,6 @@ import bs4 as BeautifulSoup
 import cchardet
 
 import pylibemu
-import PyV8
 
 from thug.ActiveX.ActiveX import _ActiveXObject
 
@@ -94,8 +94,7 @@ class DFT(object):
         self._context          = None
         log.DFT                = self
         self._init_events()
-
-        PyV8.JSEngine.setStackLimit(10 * 1024 * 1024)
+        self._init_pyhooks()
 
     def _init_events(self):
         self.listeners = list()
@@ -108,6 +107,18 @@ class DFT(object):
 
         self.handled_on_events = ['on' + e for e in self.handled_events]
         self.dispatched_events = set()
+
+    def _init_pyhooks(self):
+        hooks = log.PyHooks.get('DFT', None)
+        if hooks is None:
+            return
+
+        for label, hook in hooks.items():
+            name   = "{}_hook".format(label)
+            # _hook  = hook.im_func if hook.im_self else hook
+            _hook = six.get_method_function(hook) if six.get_method_self(hook) else hook
+            method = types.MethodType(_hook, self, DFT)
+            setattr(self, name, method)
 
     def __enter__(self):
         return self
@@ -294,6 +305,9 @@ class DFT(object):
                 i += 1
 
             url = url[:i]
+
+            if url in log.ThugLogging.retrieved_urls:
+                return
 
             try:
                 encoded_sc = shellcode.encode('unicode-escape')
@@ -483,8 +497,8 @@ class DFT(object):
 
         if isinstance(h, six.string_types):
             handler = self.build_event_handler(self.context, h)
-            # PyV8.JSEngine.collect()
-        elif isinstance(h, PyV8.JSFunction):
+            # log.JSEngine.collect()
+        elif log.JSEngine.isJSFunction(h):
             handler = h
         else:
             try:
@@ -598,6 +612,10 @@ class DFT(object):
 
         if not params:
             return params
+
+        hook = getattr(self, "do_handle_params_hook", None)
+        if hook:
+            hook(params)
 
         headers = dict()
         headers['Connection'] = 'keep-alive'
@@ -855,13 +873,7 @@ class DFT(object):
         except Exception:
             return
 
-        if response is None:
-            return
-
-        if response.status_code == 404:
-            return
-
-        if not response.content:
+        if response is None or response.status_code in (404, ) or not response.content:
             return
 
         if log.ThugOpts.code_logging:
@@ -952,7 +964,7 @@ class DFT(object):
         if log.ThugOpts.code_logging:
             log.ThugLogging.add_code_snippet(text, 'VBScript', 'Contained_Inside')
 
-        log.VBSClassifier.classify(log.ThugLogging.url if log.ThugOpts.local else log.last_url_fetched, text)
+        log.VBSClassifier.classify(log.ThugLogging.url if log.ThugOpts.local else log.last_url, text)
 
         try:
             urls = re.findall("(?P<url>https?://[^\s'\"]+)", text)
@@ -1038,10 +1050,7 @@ class DFT(object):
         except Exception:
             return
 
-        if response is None:
-            return
-
-        if response.status_code == 404:
+        if response is None or response.status_code in (404, ):
             return
 
         ctype = response.headers.get('content-type', None)
@@ -1067,6 +1076,9 @@ class DFT(object):
 
         src = embed.get('src', None)
         if src is None:
+            src = embed.get('data', None)
+
+        if src is None:
             return
 
         if log.ThugOpts.features_logging:
@@ -1082,7 +1094,7 @@ class DFT(object):
             if 'java' in headers['Content-Type'] and log.ThugOpts.Personality.javaUserAgent:
                 headers['User-Agent'] = self.javaUserAgent
 
-            if 'shockwave-flash' in headers['Content-Type']:
+            if 'flash' in headers['Content-Type']:
                 headers['x-flash-version']  = self.shockwaveFlash
 
         try:
@@ -1206,10 +1218,7 @@ class DFT(object):
         except Exception:
             return
 
-        if response is None:
-            return
-
-        if response.status_code == 404:
+        if response is None or response.status_code in (404, ):
             return
 
         if url in self.meta:
@@ -1219,7 +1228,6 @@ class DFT(object):
 
         doc    = w3c.parseString(response.content)
         window = Window(self.window.url, doc, personality = log.ThugOpts.useragent)
-        # window.open(url)
 
         dft = DFT(window)
         dft.run()
@@ -1244,10 +1252,7 @@ class DFT(object):
         except Exception:
             return
 
-        if response is None:
-            return
-
-        if response.status_code == 404:
+        if response is None or response.status_code in (404, ):
             return
 
         ctype = response.headers.get('content-type', None)
@@ -1262,7 +1267,6 @@ class DFT(object):
 
         doc    = w3c.parseString(response.content)
         window = Window(response.url, doc, personality = log.ThugOpts.useragent)
-        # window.open(src)
 
         frame_id = frame.get('id', None)
         if frame_id:
@@ -1289,6 +1293,9 @@ class DFT(object):
 
             if log.ThugOpts.features_logging:
                 log.ThugLogging.Features.increase_url_count()
+
+            if self._handle_data_uri(url):
+                continue
 
             try:
                 self.window._navigator.fetch(url, redirect_type = "font face")
@@ -1336,7 +1343,7 @@ class DFT(object):
             log.ThugLogging.Features.increase_data_uri_count()
 
         h = uri.split(",")
-        if len(h) < 2:
+        if len(h) < 2 or not h[1]:
             return False
 
         data = h[1]
@@ -1354,7 +1361,7 @@ class DFT(object):
 
             opts.remove('base64')
 
-        if not opts:
+        if not opts or not opts[0]:
             opts = ["text/plain", "charset=US-ASCII"]
 
         mimetype = opts[0]
@@ -1364,7 +1371,6 @@ class DFT(object):
 
             doc    = w3c.parseString(data)
             window = Window(self.window.url, doc, personality = log.ThugOpts.useragent)
-            # window.open(uri)
 
             dft = DFT(window)
             dft.run()
@@ -1395,10 +1401,7 @@ class DFT(object):
             except Exception:
                 return
 
-            if response is None:
-                return
-
-            if response.status_code == 404:
+            if response is None or response.status_code in (404, ):
                 return
 
         self.anchors.append(anchor)
@@ -1421,10 +1424,7 @@ class DFT(object):
         except Exception:
             return
 
-        if response is None:
-            return
-
-        if response.status_code == 404:
+        if response is None or response.status_code in (404, ):
             return
 
     def check_anchors(self):

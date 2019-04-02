@@ -16,22 +16,20 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 # MA  02111-1307  USA
 
-import os
 import sched
 import time
 import logging
 import traceback
-import urllib
+#import urllib
 import base64
 import numbers
 import collections
 import datetime
 import types
+import random
 import six
 import bs4 as BeautifulSoup
-import PyV8
 
-import thug
 from thug.ActiveX.ActiveX import _ActiveXObject
 from thug.AST.AST import AST
 from thug.Debugger import Shellcode
@@ -41,6 +39,7 @@ from thug.DOM.W3C import w3c
 from .JSClass import JSClass
 from .JSClass import JSClassConstructor
 from .JSClass import JSClassPrototype
+from .JSEngine import JSEngine
 from .Navigator import Navigator
 from .Location import Location
 from .Screen import Screen
@@ -49,6 +48,8 @@ from .CCInterpreter import CCInterpreter
 from .LocalStorage import LocalStorage
 from .SessionStorage import SessionStorage
 from .w3c_bindings import w3c_bindings
+
+import six.moves.urllib_parse as urllib
 
 sched = sched.scheduler(time.time, time.sleep)
 log = logging.getLogger("Thug")
@@ -85,7 +86,7 @@ class Window(JSClass):
                     if isinstance(self.code, six.string_types):
                         return ctx.eval(self.code)
 
-                    if isinstance(self.code, PyV8.JSFunction):
+                    if log.JSEngine.isJSFunction(self.code):
                         return self.code()
 
                     log.warning("Error while handling timer callback")
@@ -118,7 +119,7 @@ class Window(JSClass):
 
         self._navigator = navigator if navigator else Navigator(personality, self)
         self._location  = Location(self)
-        self._history   = History(self)
+        self._history   = parent.history if parent and parent.history else History(self)
 
         if url not in ('about:blank', ):
             self._history.update(url, replace)
@@ -139,6 +140,7 @@ class Window(JSClass):
         self.status        = ""
         self._left         = left
         self._top          = top if top else self
+        self._screen_top   = random.randint(0, 30)
         self.innerWidth    = width
         self.innerHeight   = height
         self.outerWidth    = width
@@ -148,8 +150,6 @@ class Window(JSClass):
 
         self._symbols      = set()
         self._methods      = tuple()
-        self._frames       = set()
-        self._inner_frames = set()
 
         log.MIMEHandler.window = self
 
@@ -173,11 +173,15 @@ class Window(JSClass):
 
         if log.ThugOpts.Personality.isIE() and key.lower() in ('wscript', 'wsh', ):
             # Prevent _ActiveXObject loops
-            super(Window, self).__setattr__("WScript", None)
-            WScript = _ActiveXObject(self, "WScript.Shell")
-            super(Window, self).__setattr__(key, WScript)
-            super(Window, self).__setattr__("WScript", WScript)
-            return WScript
+            # super(Window, self).__setattr__("WScript", None)
+            # WScript = _ActiveXObject(self, "WScript.Shell")
+            # super(Window, self).__setattr__(key, WScript)
+            # super(Window, self).__setattr__("WScript", WScript)
+            return self.WScript
+
+        if log.ThugOpts.Personality.isIE():
+            if key in self.WScript.__dict__ and callable(self.WScript.__dict__[key]):
+                return self.WScript.__dict__[key]
 
         context = self.__class__.__dict__['context'].__get__(self, Window)
 
@@ -189,7 +193,7 @@ class Window(JSClass):
         finally:
             self._symbols.discard(key)
 
-        if isinstance(symbol, PyV8.JSFunction):
+        if log.JSEngine.isJSFunction(symbol):
             _method = None
 
             if symbol in self._methods:
@@ -206,8 +210,12 @@ class Window(JSClass):
         if isinstance(symbol, (six.string_types,
                                bool,
                                numbers.Number,
-                               datetime.datetime,
-                               PyV8.JSObject)):
+                               datetime.datetime)):
+            setattr(self, key, symbol)
+            context.locals[key] = symbol
+            return symbol
+
+        if log.JSEngine.isJSObject(symbol):
             setattr(self, key, symbol)
             context.locals[key] = symbol
             return symbol
@@ -253,16 +261,18 @@ class Window(JSClass):
         """an array of all the frames (including iframes) in the current window"""
         from thug.DOM.W3C.HTML.HTMLCollection import HTMLCollection
 
+        frames = set()
         for frame in self._findAll(['frame', 'iframe']):
-            code = unicode(frame)
+            # self.doc.DFT.set_event_handler_attributes(frame)
+            # self.doc.DFT.handle_iframe(frame)
 
-            if code in self._inner_frames:
-                continue
+            if not getattr(frame, '_node', None):
+                from thug.DOM.W3C.Core.DOMImplementation import DOMImplementation
+                DOMImplementation.createHTMLElement(self.window.doc, frame)
 
-            self._inner_frames.add(code)
-            self._frames.add(Window(self.url, w3c.parseString(code), personality = log.ThugOpts.useragent))
+            frames.add(frame._node)
 
-        return HTMLCollection(self.doc, list(self._frames))
+        return HTMLCollection(self.doc, list(frames))
 
     @property
     def length(self):
@@ -315,7 +325,7 @@ class Window(JSClass):
 
     @property
     def screenTop(self):
-        return self._top
+        return self._screen_top
 
     @property
     def screenX(self):
@@ -323,7 +333,7 @@ class Window(JSClass):
 
     @property
     def screenY(self):
-        return self._top
+        return self._screen_top
 
     def _do_ActiveXObject(self, cls, typename = 'name'):
         return _ActiveXObject(self, cls, typename)
@@ -430,6 +440,7 @@ class Window(JSClass):
 
         result is a boolean value indicating whether OK or Cancel was selected.
         """
+        log.TextClassifier.classify(log.ThugLogging.url if log.ThugOpts.local else log.last_url_fetched, str(text))
         return True
 
     def dump(self, text):
@@ -443,6 +454,7 @@ class Window(JSClass):
 
         text is a string.
         """
+        log.TextClassifier.classify(log.ThugLogging.url if log.ThugOpts.local else log.last_url_fetched, str(text))
         self.alert(text)
 
     def focus(self):
@@ -788,7 +800,7 @@ class Window(JSClass):
             self.eval(code)
 
         if language.lower().startswith('vbs'):
-            log.VBSClassifier.classify(log.ThugLogging.url if log.ThugOpts.local else log.last_url_fetched, code)
+            log.VBSClassifier.classify(log.ThugLogging.url if log.ThugOpts.local else log.last_url, code)
 
         return None
 
@@ -809,13 +821,13 @@ class Window(JSClass):
             self.__init_personality_Safari()
             return
 
-        if log.ThugOpts.Personality.isOpera():
-            self.__init_personality_Opera()
-
     def __init_personality_IE(self):
         from .ClipboardData import ClipboardData
         from .Console import Console
         from .External import External
+        from thug.DOM.W3C.DOMParser import DOMParser
+
+        log.ThugOpts.activex_ready = False
 
         if not (log.ThugOpts.local and log.ThugOpts.attachment):
             self.document       = self._document
@@ -824,6 +836,7 @@ class Window(JSClass):
         self.ActiveXObject            = self._do_ActiveXObject
         self.DeferredListDataComplete = self._DeferredListDataComplete
         self.CollectGarbage           = self._CollectGarbage
+        self.WScript                  = _ActiveXObject(self, "WScript.Shell")
         self.navigate                 = self._navigate
         self.clientInformation        = self.navigator
         self.clipboardData            = ClipboardData()
@@ -839,12 +852,15 @@ class Window(JSClass):
             self.detachEvent = self._detachEvent
 
         if log.ThugOpts.Personality.browserMajorVersion >= 8:
+            self.DOMParser           = DOMParser
             self.addEventListener    = self._addEventListener
             self.removeEventListener = self._removeEventListener
             self.localStorage        = LocalStorage()
             self.sessionStorage      = SessionStorage()
 
         self.doc.parentWindow = self._parent
+
+        log.ThugOpts.activex_ready = True
 
     def __init_personality_Firefox(self):
         from .Components import Components
@@ -853,8 +869,10 @@ class Window(JSClass):
         from .Map import Map
         from .MozConnection import mozConnection
         from .Sidebar import Sidebar
+        from thug.DOM.W3C.DOMParser import DOMParser
 
         self.document            = self._document
+        self.DOMParser           = DOMParser
         self.XMLHttpRequest      = self._XMLHttpRequest
         self.addEventListener    = self._addEventListener
         self.removeEventListener = self._removeEventListener
@@ -884,8 +902,10 @@ class Window(JSClass):
         from .Chrome import Chrome
         from .Console import Console
         from .External import External
+        from thug.DOM.W3C.DOMParser import DOMParser
 
         self.document            = self._document
+        self.DOMParser           = DOMParser
         self.XMLHttpRequest      = self._XMLHttpRequest
         self.addEventListener    = self._addEventListener
         self.removeEventListener = self._removeEventListener
@@ -899,8 +919,10 @@ class Window(JSClass):
 
     def __init_personality_Safari(self):
         from .Console import Console
+        from thug.DOM.W3C.DOMParser import DOMParser
 
         self.document            = self._document
+        self.DOMParser           = DOMParser
         self.XMLHttpRequest      = self._XMLHttpRequest
         self.addEventListener    = self._addEventListener
         self.removeEventListener = self._removeEventListener
@@ -909,20 +931,6 @@ class Window(JSClass):
         self.localStorage        = LocalStorage()
         self.sessionStorage      = SessionStorage()
         self.onmousewheel        = None
-
-    def __init_personality_Opera(self):
-        from .Console import Console
-        from .Opera import Opera
-
-        self.document            = self._document
-        self.XMLHttpRequest      = self._XMLHttpRequest
-        self.addEventListener    = self._addEventListener
-        self.removeEventListener = self._removeEventListener
-        self.opera               = Opera()
-        self.doc.parentWindow    = self._parent
-        self.console             = Console()
-        self.localStorage        = LocalStorage()
-        self.sessionStorage      = SessionStorage()
 
     def eval(self, script):
         if script is None:
@@ -939,34 +947,8 @@ class Window(JSClass):
     def context(self):
         # if not hasattr(self, '_context'):
         if '_context' not in self.__dict__:
-            self._context = PyV8.JSContext(self, extensions = log.JSExtensions)
-            with self._context as ctxt:
-                thug_js = os.path.join(thug.__configuration_path__, 'scripts', "thug.js")
-                ctxt.eval(open(thug_js, 'r').read())
-
-                if log.ThugOpts.Personality.isIE():
-                    if log.ThugOpts.Personality.browserMajorVersion < 8:
-                        storage_js = os.path.join(thug.__configuration_path__, 'scripts', "storage.js")
-                        ctxt.eval(open(storage_js, 'r').read())
-
-                    if log.ThugOpts.Personality.browserMajorVersion < 9:
-                        date_js = os.path.join(thug.__configuration_path__, 'scripts', "date.js")
-                        ctxt.eval(open(date_js, 'r').read())
-
-                hooks_folder = os.path.join(thug.__configuration_path__, 'hooks')
-                hooks = os.listdir(hooks_folder) if os.path.exists(hooks_folder) else list()
-                for hook in sorted([h for h in hooks if h.endswith('.js')]):
-                    ctxt.eval(open(os.path.join(hooks_folder, hook), 'r').read())
-
-                for hook in ('eval', 'write'):
-                    js = os.path.join(thug.__configuration_path__, 'scripts', '{}.js'.format(hook))
-                    if not os.path.exists(js):
-                        continue
-
-                    symbol = getattr(log.ThugLogging, '{}_symbol'.format(hook))
-                    ctxt.eval(open(js, 'r').read() % {'name': symbol[0], 'saved': symbol[1]})
-
-                PyV8.JSEngine.collect()
+            log.JSEngine = JSEngine(self)
+            self._context = log.JSEngine.context
 
         return self._context
 
@@ -1120,7 +1102,12 @@ class Window(JSClass):
             content_type = response.headers.get('content-type' , None)
             if content_type:
                 handler = log.MIMEHandler.get_handler(content_type)
-                if handler and handler(url, html):
+
+                # No need to invoke the MIME handler here because Navigator
+                # fetch method has already taken care of it. Here we have
+                # just to check if a MIME handler exists and stop further
+                # processing if it does.
+                if handler:
                     return None
 
             # Log response here

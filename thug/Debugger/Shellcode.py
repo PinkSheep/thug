@@ -20,7 +20,6 @@ import six
 import logging
 import pylibemu
 import traceback
-from .Debugger import Debugger
 
 log = logging.getLogger("Thug")
 
@@ -82,6 +81,9 @@ class Shellcode(object):
             if url in log.ThugLogging.shellcode_urls:
                 return
 
+            if url in log.ThugLogging.retrieved_urls:
+                return
+
             log.info('[Shellcode Analysis] URL Detected: %s', url)
 
             try:
@@ -113,6 +115,10 @@ class Shellcode(object):
     def dump_eval(self):
         name, saved = log.ThugLogging.eval_symbol
 
+        # FIXME
+        if not getattr(self.ctxt, "locals", None):
+            return
+
         scripts = getattr(self.ctxt.locals, name, None)
         if scripts is None:
             return
@@ -142,6 +148,10 @@ class Shellcode(object):
     def dump_write(self):
         name, saved = log.ThugLogging.write_symbol
 
+        # FIXME
+        if not getattr(self.ctxt, "locals", None):
+            return
+
         htmls = getattr(self.ctxt.locals, name, None)
         if htmls is None:
             return
@@ -170,7 +180,7 @@ class Shellcode(object):
         self.dump_write()
 
     def run(self):
-        with Debugger() as dbg:
+        with log.JSEngine.JSDebugger() as dbg:
             dbg._context = self.ctxt
             # dbg.debugBreak()
 
@@ -193,6 +203,10 @@ class Shellcode(object):
 
             names = [p['name'] for p in self.ast.names]
             for name in names:
+                # FIXME
+                if not getattr(self.ctxt, "locals", None):
+                    continue
+
                 s = getattr(self.ctxt.locals, name, None)
 
                 if not s:
