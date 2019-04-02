@@ -19,6 +19,7 @@
 import os
 import signal
 import logging
+import sys
 
 log = logging.getLogger("Thug")
 
@@ -41,4 +42,5 @@ class Watchdog(object):
             self.callback(signum, frame)
 
         log.ThugLogging.log_event()
-        os.kill(os.getpid(), signal.SIGTERM)
+        sys.exit(0)
+        #os.kill(os.getpid(), signal.SIGTERM)
